@@ -1,0 +1,17 @@
+{
+  "name": "agent-permission-map",
+  "version": "0.0.0",
+  "description": "Map agent tools to permissions, data classes and approval requirements.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edilec/agent-permission-map"
+  }
+}
