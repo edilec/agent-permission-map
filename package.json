@@ -1,17 +1,52 @@
 {
   "name": "agent-permission-map",
-  "version": "0.0.0",
-  "description": "Map agent tools to permissions, data classes and approval requirements.",
+  "version": "0.1.0",
+  "description": "Map declared agent tools to resource scope, data class, role and approval condition; produce a versioned permission matrix and the assumptions the run could not make. Reads declarations and modifies no account.",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test"
+    "lint": "node --check src/documents.mjs && node --check src/index.mjs && node --check src/matrix.mjs && node --check src/parse-failure.mjs && node --check src/rules.mjs && node --check src/text.mjs && node --check src/vocabulary.mjs && node --check src/write-guard.mjs && node --check bin/agent-permission-map.mjs && node --check test/cli.test.mjs && node --check test/confinement.test.mjs && node --check test/destination.test.mjs && node --check test/documents.test.mjs && node --check test/examples.test.mjs && node --check test/finding-contract.test.mjs && node --check test/incomplete.test.mjs && node --check test/limits.test.mjs && node --check test/matrix-digest.test.mjs && node --check test/matrix.test.mjs && node --check test/ordering-equivalence.test.mjs && node --check test/ordering.test.mjs && node --check test/parse-failure.test.mjs && node --check test/read-only.test.mjs && node --check test/sanitisation.test.mjs && node --check test/secrets.test.mjs && node --check test/severity-exit.test.mjs && node --check test/severity-table.test.mjs && node --check test/support.mjs && node --check test/vocabulary.test.mjs",
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=src/**",
+    "example": "node bin/agent-permission-map.mjs --root examples/clean",
+    "pack:check": "npm pack --dry-run",
+    "check": "npm run lint && npm test && npm run example && npm run pack:check"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/edilec/agent-permission-map"
-  }
+    "url": "git+https://github.com/edilec/agent-permission-map.git"
+  },
+  "bin": {
+    "agent-permission-map": "./bin/agent-permission-map.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "examples",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "agent",
+    "permissions",
+    "least-privilege",
+    "authorization",
+    "approval",
+    "policy",
+    "audit",
+    "cli"
+  ],
+  "author": "Edilec Private Limited",
+  "bugs": {
+    "url": "https://github.com/edilec/agent-permission-map/issues"
+  },
+  "homepage": "https://github.com/edilec/agent-permission-map#readme"
 }

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1",
+  "tools": [
+    {
+      "id": "docs.search",
+      "capability": "read",
+      "scopes": ["docs://public/**"],
+      "dataClasses": ["public.docs"],
+      "roles": ["docs-reader"],
+      "approval": "none"
+    },
+    {
+      "id": "crm.export",
+      "capability": "read",
+      "scopes": ["crm://acme/contacts/*"],
+      "dataClasses": ["customer.contacts"],
+      "roles": ["support-agent"],
+      "approval": "per-session",
+      "description": "Names a data class the policy does not declare, so its sensitivity is unknown"
+    }
+  ]
+}

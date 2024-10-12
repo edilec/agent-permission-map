@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1",
+  "tools": [
+    {
+      "id": "docs.search",
+      "capability": "read",
+      "scopes": ["docs://public/**"],
+      "dataClasses": ["public.docs"],
+      "roles": ["docs-reader", "support-agent"],
+      "approval": "none",
+      "description": "Full-text search over published documentation"
+    },
+    {
+      "id": "tickets.read",
+      "capability": "read",
+      "scopes": ["helpdesk://**"],
+      "dataClasses": ["support.tickets"],
+      "roles": ["support-agent"],
+      "approval": "per-session",
+      "description": "Reads every ticket in every workspace, which the policy forbids for internal data"
+    },
+    {
+      "id": "tickets.reply",
+      "capability": "write",
+      "scopes": ["helpdesk://*/tickets/*"],
+      "dataClasses": ["support.tickets"],
+      "roles": ["support-agent", "docs-reader"],
+      "approval": "none",
+      "description": "Two wildcard segments where one is allowed, unattended where per-action is required, granted to a read-only role"
+    }
+  ]
+}
