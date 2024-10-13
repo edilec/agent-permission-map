@@ -83,6 +83,25 @@ test('an empty document keeps the message that carries no content at all', () =>
   assert.equal(detailFor('').detail, 'Unexpected end of JSON input')
 })
 
+test('a message that reaches the position branch with a quote still standing is discarded', () => {
+  /*
+   * This is the case that pins the closing backstop on its own, and it was
+   * added after measuring: removing the backstop alone left every other case in
+   * this file green, because the branches above happened to answer them safely.
+   * A guard nothing fails for is a guard that will quietly stop being there.
+   *
+   * The message is synthetic -- it is the shape a future V8 could produce by
+   * appending a position clause to the quoting form, which the quoting pattern
+   * would then not match because it no longer ends with "is not valid JSON".
+   * The position branch slices the quoted span straight back out; the backstop
+   * sees the surviving double quote and discards the whole detail.
+   */
+  const detail = parseFailureDetail(new Error(`Unexpected token 'x', "secret-token-value" is not valid JSON at position 3`))
+
+  assert.equal(detail.includes('secret-token-value'), false)
+  assert.equal(detail, 'the document could not be parsed as JSON')
+})
+
 test('a message shape the helper has never seen is discarded if it carries a double quote', () => {
   // The closing backstop, which is the reason this helper is safe against
   // wordings a future V8 invents: across the measured corpus every message with
@@ -93,6 +112,17 @@ test('a message shape the helper has never seen is discarded if it carries a dou
   assert.equal(invented.includes('secret-token-value'), false)
   assert.equal(invented, 'the document could not be parsed as JSON')
 })
+
+/*
+ * Measured, and recorded because the result was not what the sketch implies:
+ * with the backstop in place, reversing the two branches does not change the
+ * answer to any case above, and neither does dropping the `s` flag -- both
+ * mistakes produce a detail that still carries a double quote, and the backstop
+ * discards it. Reversing the branches *and* removing the backstop does fail the
+ * "at position 1" case above, which is how the branch order was verified to be
+ * load-bearing. Defence in depth is the design; the backstop is what makes the
+ * helper safe against a wording it has never been taught.
+ */
 
 test('a non-error argument does not throw its way out of the helper', () => {
   assert.equal(typeof parseFailureDetail(undefined), 'string')
