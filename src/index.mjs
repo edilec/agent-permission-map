@@ -39,7 +39,9 @@ import { compilePolicy, compileRoles, compileTools } from './documents.mjs'
 import { buildMatrix, createMatrix, downgradeRows } from './matrix.mjs'
 import { parseFailureDetail } from './parse-failure.mjs'
 import { RULE_SEVERITY, severityOf } from './rules.mjs'
-import { byCodeUnit, decodeUtf8, excerpt, hasForbiddenCharacter, isPlainObject } from './text.mjs'
+import {
+  LOCATION_LIMIT, byCodeUnit, decodeUtf8, excerpt, hasForbiddenCharacter, isPlainObject, locationText,
+} from './text.mjs'
 
 export const TOOL_ID = 'agent-permission-map'
 export const REPORT_SCHEMA_VERSION = '1'
@@ -89,7 +91,6 @@ export const HARD_LIMITS = Object.freeze({
 
 const MESSAGE_LIMIT = 400
 const SUGGESTION_LIMIT = 300
-const LOCATION_LIMIT = 200
 const MAX_NAME_LENGTH = 200
 const ASSUMPTION_LIMIT = 300
 
@@ -200,7 +201,7 @@ export function createFinding(row) {
     ruleId: row.ruleId,
     severity: severityOf(row.ruleId),
     message: excerpt(row.message, MESSAGE_LIMIT),
-    location: { file: excerpt(row.file, LOCATION_LIMIT), pointer: excerpt(row.pointer, LOCATION_LIMIT) },
+    location: { file: locationText(row.file, LOCATION_LIMIT), pointer: locationText(row.pointer, LOCATION_LIMIT) },
   }
   if (row.evidence !== undefined && row.evidence !== '') finding.evidence = excerpt(row.evidence)
   if (row.suggestion !== undefined) finding.suggestion = excerpt(row.suggestion, SUGGESTION_LIMIT)
@@ -549,8 +550,8 @@ export async function mapAgentPermissions(options = {}) {
     } else {
       state.rows = result.rows
       state.assumptions = result.assumptions.map((entry) => ({
-        file: excerpt(entry.file, LOCATION_LIMIT),
-        pointer: excerpt(entry.pointer, LOCATION_LIMIT),
+        file: locationText(entry.file, LOCATION_LIMIT),
+        pointer: locationText(entry.pointer, LOCATION_LIMIT),
         assumption: excerpt(entry.assumption, ASSUMPTION_LIMIT),
       }))
       state.counts = result.counts
@@ -643,6 +644,7 @@ export {
 export { DestinationError, assertWritableDestination } from './write-guard.mjs'
 export { parseFailureDetail } from './parse-failure.mjs'
 export {
-  EXCERPT_LIMIT, MAX_DESCRIPTION_LENGTH, MAX_IDENTIFIER_LENGTH, MAX_SCOPE_LENGTH, byCodeUnit,
-  decodeUtf8, describeValue, excerpt, hasForbiddenCharacter, isIdentifier, isPlainObject,
+  EXCERPT_LIMIT, LOCATION_LIMIT, MAX_DESCRIPTION_LENGTH, MAX_IDENTIFIER_LENGTH, MAX_SCOPE_LENGTH,
+  byCodeUnit, decodeUtf8, describeValue, excerpt, hasForbiddenCharacter, isIdentifier, isPlainObject,
+  locationText, renderable,
 } from './text.mjs'
