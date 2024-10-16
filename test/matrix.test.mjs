@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   apiReport,
   clean,
+  cliReport,
   dataClass,
   findingsFor,
   fixture,
@@ -144,16 +145,75 @@ test('a tool reaching data above the sensitivity ceiling of a role it is granted
   assert.equal(rowFor(report, 'tickets.reply').sensitivity, 'restricted')
 })
 
-test('sensitivity is the highest of the classes a tool touches, never the first or the mildest', async () => {
-  const report = await apiReport(fixture(
-    [tool('mixed.export', 'read', 'two-person', { dataClasses: ['public.docs', 'payroll.records', 'support.tickets'] })],
-    [role('support-agent', 'read', 'restricted')],
-    [dataClass('public.docs', 'public'), dataClass('payroll.records', 'restricted'), dataClass('support.tickets', 'internal')],
-    [requirement('read', 'restricted', 'two-person', 1, 'forbidden')],
-  ))
+/**
+ * Sensitivity is the highest of the classes a tool touches.
+ *
+ * This is the load-bearing input to the whole acceptance criterion: the
+ * sensitivity picks the requirement, the requirement supplies
+ * `maxScopeWildcards`, `unboundedScope` and the approval, and the role ceiling
+ * is compared against it. Get it wrong in the permissive direction and a tool
+ * reaching payroll is measured against the rule for published documentation.
+ *
+ * The first version of this test could not fail. `compileTools` sorts a tool's
+ * `dataClasses` by code unit, and its fixture ids happened to sort so that the
+ * MOST sensitive class was already first -- so "highest" and "first" named the
+ * same member, and replacing `Math.max` with first-wins left the suite green
+ * while the same declarations flipped from exit 1 to exit 0.
+ *
+ * Two cases, with the sorted position of the strongest class deliberately
+ * opposite in each, and the verdict driven through the real binary:
+ *
+ * - the strongest class sorts LAST, which first-wins and a minimum both get
+ *   wrong;
+ * - the strongest class sorts FIRST, which last-wins gets wrong.
+ *
+ * Both policies declare a requirement for the mild pair as well as the strong
+ * one, so a wrong answer is a clean `pass` at exit 0 rather than a missing
+ * requirement -- the mutant has to produce the dangerous outcome, not a
+ * different complaint.
+ */
+const mixedSensitivity = (classes) => fixture(
+  [tool('mixed.export', 'read', 'two-person', { dataClasses: classes.map(([id]) => id) })],
+  [role('support-agent', 'read', 'internal')],
+  classes.map(([id, sensitivity]) => dataClass(id, sensitivity)),
+  [
+    requirement('read', 'public', 'none', 2, 'allowed'),
+    requirement('read', 'restricted', 'two-person', 2, 'forbidden'),
+  ],
+)
 
-  assert.deepEqual(report.findings, [])
-  assert.equal(rowFor(report, 'mixed.export').sensitivity, 'restricted')
+test('sensitivity is the highest of the classes a tool touches when the strongest sorts last', async () => {
+  const run = await cliReport(mixedSensitivity([
+    ['a.public', 'public'], ['m.tickets', 'internal'], ['z.payroll', 'restricted'],
+  ]))
+  const row = rowFor(run.report, 'mixed.export')
+
+  // The premise, asserted rather than assumed: the mildest class really is
+  // first in the row, so "highest" and "first" are different answers here.
+  assert.deepEqual(row.dataClasses, ['a.public', 'm.tickets', 'z.payroll'])
+  assert.equal(row.sensitivity, 'restricted')
+
+  // And the consequence, which is what a first-wins or minimum reading would
+  // turn into a green build.
+  assert.deepEqual(raisedRules(run.report), ['role-sensitivity-exceeded'])
+  assert.equal(row.verdict, 'outside-policy')
+  assert.equal(run.report.status, 'fail')
+  assert.equal(run.code, 1)
+})
+
+test('sensitivity is the highest of the classes a tool touches when the strongest sorts first', async () => {
+  const run = await cliReport(mixedSensitivity([
+    ['a.payroll', 'restricted'], ['z.public', 'public'],
+  ]))
+  const row = rowFor(run.report, 'mixed.export')
+
+  assert.deepEqual(row.dataClasses, ['a.payroll', 'z.public'])
+  assert.equal(row.sensitivity, 'restricted')
+
+  assert.deepEqual(raisedRules(run.report), ['role-sensitivity-exceeded'])
+  assert.equal(row.verdict, 'outside-policy')
+  assert.equal(run.report.status, 'fail')
+  assert.equal(run.code, 1)
 })
 
 test('a warning does not put a row outside the policy, and does not fail the run', async () => {
