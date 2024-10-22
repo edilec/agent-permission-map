@@ -140,11 +140,19 @@ test('an undecided run lists the assumption it could not make, at the pointer th
   assert.equal(report.summary.assumptions, 1)
 })
 
-test('an entry the compiler refused makes the run incomplete even when every row that survived is clean', async () => {
-  // The surviving tool is fully within policy. The refused one is the whole
-  // reason the run is not a pass, which is exactly the shape that let an
-  // unread input report green elsewhere in this catalog.
-  const report = await apiReport(fixture(
+/**
+ * A tool refused by a closed ladder is `undecided`, not absent.
+ *
+ * It used to vanish: no row, no assumption, and a summary whose two numbers
+ * were both drawn from the survivors, so a document declaring two tools with
+ * one refused printed "1 of 1 declared tool(s) mapped". The matrix a review
+ * signs off then showed only the tool that agreed with the policy, with
+ * nothing in it saying the other one existed. Silence is the worst of the
+ * three answers available here, and the README, the rule catalog and the help
+ * text all promised the opposite.
+ */
+test('a tool refused by a closed ladder reaches the matrix undecided, and is still counted as declared', async () => {
+  const run = await cliReport(fixture(
     [
       tool('tickets.reply', 'write', 'per-action'),
       tool('mystery.tool', 'telepathy', 'per-action'),
@@ -153,12 +161,56 @@ test('an entry the compiler refused makes the run incomplete even when every row
     [dataClass('support.tickets', 'internal')],
     [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
   ))
+  const report = run.report
 
   assert.deepEqual(raisedRules(report), ['capability-unsupported'])
-  assert.equal(report.matrix.rows.length, 1)
-  assert.equal(rowFor(report, 'tickets.reply').verdict, 'within-policy')
   assert.equal(report.status, 'incomplete', 'one unread entry is not a pass for the others')
-  assert.equal(report.summary.undecided, 0, 'and it is not counted as a decided row either')
+  assert.equal(run.code, 2)
+
+  // The refused tool is in the matrix, named, undecided, and carrying the rule
+  // that refused it.
+  assert.deepEqual(report.matrix.rows.map((row) => row.id), ['mystery.tool', 'tickets.reply'])
+  const refusedRow = rowFor(report, 'mystery.tool')
+  assert.equal(refusedRow.verdict, 'undecided')
+  assert.deepEqual(refusedRow.reasons, ['capability-unsupported'])
+  assert.equal(refusedRow.capability, null, 'no word was read, so none is reported')
+  assert.equal(rowFor(report, 'tickets.reply').verdict, 'within-policy')
+
+  // The assumption the run could not make is listed, at the entry it belongs to.
+  assert.deepEqual(report.matrix.assumptions, [{
+    file: 'tools.json',
+    pointer: '/tools/1',
+    assumption: 'this tool declaration could not be read, so nothing it declares was mapped',
+  }])
+
+  // And the counts say two tools were declared, one of them refused.
+  assert.equal(report.summary.tools, 2)
+  assert.equal(report.summary.toolsRefused, 1)
+  assert.equal(report.summary.undecided, 1)
+  assert.equal(report.summary.withinPolicy, 1)
+  assert.match(run.stderr, /2 of 2 declared tool\(s\) were mapped and 1 could not be decided/)
+})
+
+test('a tool refused before it declared a usable id is listed as an assumption, since no row can be named for it', async () => {
+  const run = await cliReport(fixture(
+    [
+      tool('tickets.reply', 'write', 'per-action'),
+      { capability: 'write', approval: 'per-action', scopes: [], dataClasses: [], roles: [] },
+    ],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+  const report = run.report
+
+  assert.deepEqual(raisedRules(report), ['identifier-invalid'])
+  assert.deepEqual(report.matrix.rows.map((row) => row.id), ['tickets.reply'])
+  assert.deepEqual(report.matrix.assumptions.map((entry) => entry.pointer), ['/tools/1'])
+  assert.equal(report.summary.tools, 2)
+  assert.equal(report.summary.toolsRefused, 1)
+  assert.equal(report.summary.checked, 1, 'one of two declared tools reached the matrix')
+  assert.equal(report.status, 'incomplete')
+  assert.match(run.stderr, /1 of 2 declared tool\(s\) were mapped/)
 })
 
 test('a document that could not be parsed produces an incomplete report on stdout, not an empty stdout', async () => {

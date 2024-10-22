@@ -33,8 +33,10 @@ changes nothing. A row says what the documents declare, never what a live
 provider actually allows.
 
 Unknown is never a pass. A data class nobody declared, a role nobody declared, a
-scope that could not be measured, or a capability and sensitivity pair no
-requirement governs, leaves the tool undecided, lists an assumption, and exits 2.
+scope that could not be measured, a word outside a ladder, or a capability and
+sensitivity pair no requirement governs, leaves the tool undecided, lists an
+assumption, and exits 2. A refused tool keeps its row in the matrix; it is
+undecided there, never absent.
 
 Usage:
   agent-permission-map --root DIR [--tools FILE] [--roles FILE] [--policy FILE]
@@ -74,6 +76,8 @@ Every option that carries a value may be given only once: a repeated flag is a
 configuration error, not a silent last-wins.
 
 Writing the matrix:
+  The document carries the status of the run that produced it, inside its
+  digest, because it is written on its own and read on its own.
   --out is checked before anything is read and long before anything is written.
   A destination that is a symbolic link is refused unread, a destination that is
   the same file as one of the three inputs -- including through a hard link,

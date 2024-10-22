@@ -62,13 +62,115 @@ test('a scope with more wildcard segments than the requirement allows is visible
   assert.equal(rowFor(report, 'tickets.reply').verdict, 'outside-policy')
 })
 
-test('the measured breadth of every scope reaches the matrix row whether or not it is refused', async () => {
+test('the measured breadth of every scope reaches the matrix row', async () => {
   const report = await apiReport(withScope('helpdesk://*/tickets/*', requirement('write', 'internal', 'per-action', 8, 'allowed')))
 
   assert.deepEqual(report.findings, [])
   assert.deepEqual(rowFor(report, 'tickets.reply').scopes, [
     { pattern: 'helpdesk://*/tickets/*', segments: 3, wildcards: 2, unbounded: false },
   ])
+  assert.equal(rowFor(report, 'tickets.reply').scopesRefused, 0)
+})
+
+/**
+ * A refused scope has no breadth to report -- measuring it is exactly what
+ * failed -- so it cannot appear among the measured scopes. What it must not do
+ * is vanish: a row listing one scope, for a tool declaring two, tells a
+ * reviewer the tool reaches less than it does. The count beside the list is the
+ * honest form of that, and this case plants a genuinely refused scope rather
+ * than asserting the property over a fixture where nothing was refused.
+ */
+test('a refused scope is counted on the row rather than dropped from it without trace', async () => {
+  const report = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', {
+      scopes: ['helpdesk://acme/tickets/*', 'helpdesk://acme//tickets'],
+    })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 8, 'allowed')],
+  ))
+  const row = rowFor(report, 'tickets.reply')
+
+  assert.deepEqual(raisedRules(report), ['scope-invalid'])
+  assert.deepEqual(row.scopes, [
+    { pattern: 'helpdesk://acme/tickets/*', segments: 3, wildcards: 1, unbounded: false },
+  ])
+  assert.equal(row.scopesRefused, 1, 'the row says its scope list is partial')
+  assert.equal(row.verdict, 'undecided', 'and a partly unread reach is not a verdict')
+  assert.equal(report.status, 'incomplete')
+})
+
+test('a refused data class or role reference is counted on the row too', async () => {
+  const report = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', {
+      dataClasses: ['support.tickets', 42],
+      roles: ['support-agent', 42],
+    })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+  const row = rowFor(report, 'tickets.reply')
+
+  assert.deepEqual(raisedRules(report), ['class-reference-invalid', 'role-reference-invalid'])
+  assert.deepEqual(row.dataClasses, ['support.tickets'])
+  assert.equal(row.dataClassesRefused, 1)
+  assert.deepEqual(row.roles, ['support-agent'])
+  assert.equal(row.rolesRefused, 1)
+  assert.equal(row.verdict, 'undecided')
+})
+
+/**
+ * The other half of the absent/unreadable split, and the half that is easy to
+ * leave out: two different facts must not share one sentence.
+ */
+test('a tool whose every scope was refused is not reported as declaring none', async () => {
+  const refused = await apiReport(withScope('helpdesk://acme//tickets', requirement('write', 'internal', 'per-action', 8, 'allowed')))
+  const absent = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', { scopes: [] })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 8, 'allowed')],
+  ))
+
+  assert.deepEqual(raisedRules(refused), ['scope-invalid', 'tool-scopes-unreadable'])
+  assert.deepEqual(raisedRules(absent), ['tool-declares-no-scope'])
+  assert.notEqual(
+    findingsFor(refused, 'tool-scopes-unreadable')[0].message,
+    findingsFor(absent, 'tool-declares-no-scope')[0].message,
+  )
+  assert.match(findingsFor(refused, 'tool-scopes-unreadable')[0].message, /not the same as declaring none/)
+  assert.deepEqual(
+    refused.matrix.assumptions.map((entry) => entry.assumption),
+    [
+      // Ordered by pointer: `/tools/0` before `/tools/0/scopes`.
+      'part of this tool declaration could not be read, so its reach is only partly known',
+      'every scope this tool declares was refused, so what it reaches is unknown',
+    ],
+  )
+  assert.deepEqual(
+    absent.matrix.assumptions.map((entry) => entry.assumption),
+    ['no resource scope is declared, so what this tool reaches is unknown'],
+  )
+})
+
+test('a tool whose every data class reference was refused is not reported as declaring none', async () => {
+  const refused = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', { dataClasses: [42] })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+  const absent = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', { dataClasses: [] })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+
+  assert.deepEqual(raisedRules(refused), ['class-reference-invalid', 'tool-data-classes-unreadable'])
+  assert.deepEqual(raisedRules(absent), ['tool-declares-no-data-class'])
+  assert.match(findingsFor(refused, 'tool-data-classes-unreadable')[0].message, /not the same as declaring none/)
 })
 
 /**

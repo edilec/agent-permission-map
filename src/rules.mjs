@@ -64,11 +64,13 @@ export const RULE_SEVERITY = Object.freeze({
   'too-many-roles': 'error',
   'too-many-scopes': 'error',
   'too-many-tools': 'error',
+  'tool-data-classes-unreadable': 'error',
   'tool-declares-no-data-class': 'error',
   'tool-declares-no-scope': 'error',
   'tool-duplicate': 'error',
   'tool-grants-no-role': 'warning',
   'tool-invalid': 'error',
+  'tool-scopes-unreadable': 'error',
 })
 
 /** The severity of one rule. An id that is not in the table throws rather than defaulting. */

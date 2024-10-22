@@ -90,3 +90,50 @@ test('an unversioned policy still produces a digest, and says the version is mis
   // nothing was declared rather than reading a version that was invented.
   assert.equal(report.status, 'incomplete')
 })
+
+/**
+ * The matrix document is read on its own, so it has to say so on its own.
+ *
+ * `--out` wrote a signed matrix of `within-policy` rows from a run that had
+ * exited 2 with a declared tool refused, and nothing in the artefact said the
+ * audit had not completed: the only warning was a stderr line that `--json`
+ * suppresses and that a consumer reading the file never sees at all. The
+ * README calls this document "the thing a review signs off and a later run is
+ * compared against", which is precisely why it cannot be silent about that.
+ */
+test('the written matrix carries the run status, so an incomplete run cannot be read as a clean one', async () => {
+  const { serializeMatrix } = await import('../src/index.mjs')
+
+  const passing = await apiReport(clean())
+  assert.equal(passing.status, 'pass')
+  assert.equal(passing.matrix.status, 'pass')
+  assert.equal(JSON.parse(serializeMatrix(passing)).status, 'pass')
+
+  const refused = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action'), tool('mystery.tool', 'telepathy', 'per-action')],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+  const written = JSON.parse(serializeMatrix(refused))
+
+  assert.equal(refused.status, 'incomplete')
+  assert.equal(written.status, 'incomplete', 'the artefact must say what the exit code said')
+  // And the refusal itself is in the document, not only in the findings the
+  // artefact does not carry.
+  assert.equal(written.rows.find((row) => row.id === 'mystery.tool').verdict, 'undecided')
+  assert.equal(written.assumptions.length, 1)
+})
+
+test('the status is inside the digest, so approving the bytes approves the completeness claim', async () => {
+  const { createMatrix } = await import('../src/index.mjs')
+  const rows = []
+  const assumptions = []
+
+  const complete = createMatrix('pass', '2026-09-1', rows, assumptions)
+  const partial = createMatrix('incomplete', '2026-09-1', rows, assumptions)
+
+  assert.notEqual(complete.digest, partial.digest)
+  assert.equal(complete.status, 'pass')
+  assert.equal(partial.status, 'incomplete')
+})

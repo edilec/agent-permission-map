@@ -28,7 +28,12 @@ const broken = () => fixture(
     tool('c.tool', 'write', 'per-action', { unknownKey: 1 }),
     tool('d.tool', 'delete', 'two-person', { dataClasses: ['nowhere'] }),
   ],
-  [role('support-agent', 'write', 'internal'), role('unused', 'read', 'public')],
+  // The second role raises a finding of its own against `roles.json`, which is
+  // what keeps the ordering assertions below spanning more than one file. It
+  // has to be a positive claim rather than "granted no tool": a document
+  // holding an entry nobody could read cannot establish that absence at all,
+  // so that rule stays silent whenever one does.
+  [role('support-agent', 'write', 'internal'), role('not a usable id', 'read', 'public')],
   [dataClass('support.tickets', 'internal')],
   [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
 )

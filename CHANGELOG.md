@@ -7,6 +7,50 @@ here.
 
 ## [Unreleased]
 
+### Fixed
+
+- A tool refused by a closed ladder no longer vanishes. It used to be dropped
+  entirely -- no matrix row, no assumption, `undecided: 0` -- while the README,
+  the rule catalog and the help text all said it was left `undecided` with the
+  assumption listed. The matrix `--out` wrote then showed only the surviving
+  tools, all `within-policy`, with nothing in the artefact saying a declared
+  tool had been refused. Such an entry now reaches the matrix as an `undecided`
+  row carrying the rule that refused it, with its assumption listed; an entry
+  that declared no usable id reaches it as the assumption alone.
+- `summary.tools` is the count `tools.json` declares rather than the count that
+  compiled, so the human summary can no longer print "2 of 2 declared tool(s)
+  mapped" over a document declaring three. `summary.toolsRefused` reports the
+  difference.
+- `matrix.status` records the status of the run that produced the document, and
+  is inside the digest. `--out` used to write a signed matrix of
+  `within-policy` rows from a run that had exited 2, with the only warning on a
+  stderr line that `--json` suppresses.
+- A tool whose every scope or every data-class reference was refused is no
+  longer reported as declaring none. `tool-scopes-unreadable` and
+  `tool-data-classes-unreadable` say what actually happened; the old
+  `tool-declares-no-scope` and `tool-declares-no-data-class` messages asserted
+  an absence that was false and sent a reviewer looking for a declaration that
+  was sitting in the file.
+- Matrix rows carry `dataClassesRefused`, `rolesRefused` and `scopesRefused`. A
+  reference or pattern the build could not read cannot appear in the list
+  beside it, and a list that simply lost it said the tool reaches less than it
+  declares.
+- `role-grants-nothing` stays silent when a tool entry whose `roles` list was
+  itself refused is present: "granted no tool" would be an absence this run
+  could not have established.
+- `location.file` and `location.pointer` are no longer passed through
+  `excerpt`, which collapses runs of whitespace and trims. A file named
+  `my  tools.json` was reported as `my tools.json`, and a consumer resolving
+  the path the report contract promises is relative to the input root got
+  ENOENT.
+- A value that cannot be converted to a string -- `{"toString": {}}` parses out
+  of JSON and throws on `String(value)` -- is described by its shape,
+  `[object]` or `[array]`, instead of taking the whole run down with an empty
+  stdout at exit 2.
+- An id is claimed by the entry that declares it whether or not the rest of
+  that entry compiles, so a refused entry and a later good one can no longer
+  both carry the same id.
+
 ### Added
 
 - First implementation of `agent-permission-map`: reads declared agent tools,
@@ -16,8 +60,8 @@ here.
 - Scope breadth measured from the declared pattern -- wildcard segments, and
   whether any segment is the unbounded `**` -- and judged against the
   requirement that governs the tool, so a policy can permit a wide read and
-  refuse a wide delete. The measured breadth reaches the matrix row whether or
-  not it was refused.
+  refuse a wide delete. Every scope the run could measure reaches the matrix
+  row, and `scopesRefused` beside it says how many could not be.
 - Three closed ladders (`capability`, `sensitivity`, `approval`) whose order is
   documented as a convention of this build. A word outside a ladder is refused
   and recorded as an unsupported assumption, never mapped onto the nearest word
@@ -33,7 +77,7 @@ here.
   two runs over the same declarations produce the same digest and any change to
   a scope, role, verdict or assumption produces a different one. A policy with
   no `version` produces a null version and an `incomplete` run.
-- A 48-rule catalog with one frozen `ruleId -> severity` table, documented in
+- A 50-rule catalog with one frozen `ruleId -> severity` table, documented in
   `docs/permission-rules.md` and pinned behaviourally: every error rule is
   driven through the real binary and asserted by process exit code, and every
   warning rule is asserted to exit 0, so neither direction can drift.

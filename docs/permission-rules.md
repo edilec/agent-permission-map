@@ -89,6 +89,12 @@ assumption the run could not make; it is never mapped onto the nearest word that
 looks similar, because for a permission map the convenient guess is always the
 permissive one.
 
+Refusing the word does not drop the tool. The entry reaches the matrix as an
+`undecided` row carrying the rule that refused it, and the assumption is listed
+against its pointer, so a reviewer reading the matrix alone sees that a declared
+tool was not mapped. A tool that declared no usable `id` has nothing to name a
+row with and reaches the matrix as the assumption alone.
+
 | Ladder | Weakest → strongest |
 | --- | --- |
 | `capability` | `read`, `write`, `execute`, `delete`, `admin` |
@@ -139,6 +145,12 @@ at all and every tool it governs is `undecided`.
 | `within-policy` | Every error-severity rule that could apply to this tool did not fire. A warning may still be attached. |
 | `outside-policy` | At least one error-severity rule fired against it. |
 | `undecided` | Evidence was missing. Never a pass, always `incomplete`, always listed in `matrix.assumptions`. |
+
+A row also carries `dataClassesRefused`, `rolesRefused` and `scopesRefused`. A
+reference or a pattern this build could not read cannot appear in the list
+beside it — reading it is what failed — and a list that simply lost it would
+say the tool reaches less than it declares. The count is what makes the list
+honest about being partial.
 
 ## Rule catalog
 
@@ -202,7 +214,9 @@ defect.
 | `role-unknown` | error | A tool is granted to a role the role document does not declare, so that role's ceilings are unknown. |
 | `requirement-missing` | error | No requirement governs the capability and sensitivity a tool declares. The tool is undecided rather than unrestricted. |
 | `tool-declares-no-data-class` | error | A tool declares an empty `dataClasses` list, so which requirement governs it is unknown. An empty list is not read as "public data". |
+| `tool-data-classes-unreadable` | error | A tool names data classes and every one of them was refused. Not the same fact as declaring none, and never reported as that one. |
 | `tool-declares-no-scope` | error | A tool declares an empty `scopes` list, so what it reaches is unknown. An empty list is not read as "nothing". |
+| `tool-scopes-unreadable` | error | A tool declares scopes and none of them could be measured. Not the same fact as declaring none, and never reported as that one. |
 | `tool-grants-no-role` | warning | A tool is granted to no role, so nothing declared here can run it. A dead declaration rather than a wider permission. |
 | `role-grants-nothing` | warning | A role is granted no tool. |
 
@@ -273,8 +287,13 @@ byte-identical stdout.
 
 ## Writing the matrix
 
-`--out` writes the versioned matrix document. It is checked before anything is
-read and long before anything is written:
+`--out` writes the versioned matrix document. The document carries `status` —
+the status of the run that produced it, inside the digest — because it is
+written on its own and read on its own: the exit code is not in the file, and
+the stderr warning an incomplete run prints is suppressed by `--json` and never
+reaches a consumer reading the artefact.
+
+It is checked before anything is read and long before anything is written:
 
 - a destination that **is a symbolic link** is refused on sight, because
   `realpath` would resolve it and resolving is the dangerous act;

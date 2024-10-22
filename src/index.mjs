@@ -186,6 +186,22 @@ class FindingSink {
   add(row) {
     this.rows.push({ pointer: '', ...row })
   }
+
+  /**
+   * A position in the sink, and the rule ids raised since it.
+   *
+   * A compiler that refuses one entry has already said why, once, through
+   * `add`. The matrix needs those same rule ids to put on the `undecided` row
+   * it now emits for that entry, and reading them back is how the row and the
+   * findings cannot drift apart: there is one statement of why, not two.
+   */
+  mark() {
+    return this.rows.length
+  }
+
+  rulesSince(mark) {
+    return [...new Set(this.rows.slice(mark).map((row) => row.ruleId))]
+  }
 }
 
 /**
@@ -252,8 +268,8 @@ function buildReport(sink, state, limits) {
     else if (finding.severity === 'warning') warnings += 1
   }
 
-  const matrix = createMatrix(state.version, state.rows, state.assumptions)
   const status = state.incomplete || truncated ? 'incomplete' : errors > 0 ? 'fail' : 'pass'
+  const matrix = createMatrix(status, state.version, state.rows, state.assumptions)
 
   return {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -264,6 +280,7 @@ function buildReport(sink, state, limits) {
       errors,
       warnings,
       tools: state.tools,
+      toolsRefused: state.toolsRefused,
       roles: state.roles,
       dataClasses: state.dataClasses,
       requirements: state.requirements,
@@ -373,6 +390,7 @@ function emptyState(files) {
     assumptions: [],
     counts: { withinPolicy: 0, outsidePolicy: 0, undecided: 0, overbroadScopes: 0 },
     tools: 0,
+    toolsRefused: 0,
     roles: 0,
     dataClasses: 0,
     requirements: 0,
@@ -509,7 +527,19 @@ export async function mapAgentPermissions(options = {}) {
     if (compiled.policy.requirements.entries.length !== compiled.policy.requirements.declared) state.incomplete = true
   }
   if (compiled.roles !== null) state.roles = compiled.roles.entries.length
-  if (compiled.tools !== null) state.tools = compiled.tools.entries.length
+  if (compiled.tools !== null) {
+    /*
+     * `tools` is what the document DECLARES, not what compiled.
+     *
+     * It used to be the compiled count, so a document declaring three tools
+     * with one refused printed "2 of 2 declared tool(s) mapped" -- a sentence
+     * whose two numbers were both drawn from the survivors, and which agreed
+     * with itself while contradicting the file. The refused ones are counted
+     * separately and reach the matrix as `undecided` rows.
+     */
+    state.tools = compiled.tools.declared
+    state.toolsRefused = compiled.tools.refused.length
+  }
 
   if (KINDS.every((kind) => compiled[kind] !== null)) {
     let result = null

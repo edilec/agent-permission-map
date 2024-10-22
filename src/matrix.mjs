@@ -84,8 +84,29 @@ export function buildMatrix(sink, files, compiled, budget) {
       assume(tool.pointer, 'part of this tool declaration could not be read, so its reach is only partly known')
     }
 
+    /*
+     * "Declares none" and "declared some, and none could be read" are different
+     * facts, and the second one must never be reported as the first.
+     *
+     * Both leave the list empty here, and both leave the tool undecided, so it
+     * is tempting to answer them with one sentence. That sentence then tells a
+     * reviewer an absence -- "this tool declares no resource scope" -- about a
+     * declaration that is sitting in the file, which is exactly how a reviewer
+     * is told to stop looking for something that is there. This package already
+     * splits the same distinction for deletion evidence in its sibling tool;
+     * it is split here too.
+     */
     let sensitivity = null
-    if (tool.dataClasses.length === 0) {
+    if (tool.dataClasses.length === 0 && tool.dataClassesRefused > 0) {
+      undecided = true
+      fail(
+        'tool-data-classes-unreadable',
+        `${tool.pointer}/dataClasses`,
+        `Tool "${excerpt(tool.id, 120)}" names ${tool.dataClassesRefused} data class(es) and none of them could be read, so which requirement governs it is unknown. That is not the same as declaring none, and it is not reported as such.`,
+        'Correct the refused references; the finding on each one says what was wrong with it.',
+      )
+      assume(`${tool.pointer}/dataClasses`, 'every data class this tool names was refused, so the sensitivity it handles is unknown')
+    } else if (tool.dataClasses.length === 0) {
       undecided = true
       fail(
         'tool-declares-no-data-class',
@@ -115,7 +136,16 @@ export function buildMatrix(sink, files, compiled, budget) {
       if (rank !== -1) sensitivity = SENSITIVITIES[rank]
     }
 
-    if (tool.scopes.length === 0) {
+    if (tool.scopes.length === 0 && tool.scopesRefused > 0) {
+      undecided = true
+      fail(
+        'tool-scopes-unreadable',
+        `${tool.pointer}/scopes`,
+        `Tool "${excerpt(tool.id, 120)}" declares ${tool.scopesRefused} scope(s) and none of them could be measured, so what it reaches is unknown. That is not the same as declaring none, and it is not reported as such.`,
+        'Correct the refused patterns; the finding on each one says what was wrong with it.',
+      )
+      assume(`${tool.pointer}/scopes`, 'every scope this tool declares was refused, so what it reaches is unknown')
+    } else if (tool.scopes.length === 0) {
       undecided = true
       fail(
         'tool-declares-no-scope',
@@ -233,18 +263,30 @@ export function buildMatrix(sink, files, compiled, budget) {
     else if (verdict === 'outside-policy') counts.outsidePolicy += 1
     else counts.withinPolicy += 1
 
+    /*
+     * `dataClassesRefused`, `rolesRefused` and `scopesRefused` are on the row
+     * because a list that is short says nothing about why. A scope this build
+     * could not measure has no breadth to report -- measuring it is exactly
+     * what failed -- so it cannot appear among the measured scopes, and a row
+     * that simply omitted it told a reviewer the tool reaches less than it
+     * declares. The count is the honest form of that: the list is what was
+     * measured, and the number beside it says how much was not.
+     */
     rows.push({
       id: tool.id,
       capability: tool.capability,
       sensitivity,
       dataClasses: tool.dataClasses,
+      dataClassesRefused: tool.dataClassesRefused,
       roles: tool.roles,
+      rolesRefused: tool.rolesRefused,
       scopes: tool.scopes.map((scope) => ({
         pattern: scope.pattern,
         segments: scope.segments,
         wildcards: scope.wildcards,
         unbounded: scope.unbounded,
       })),
+      scopesRefused: tool.scopesRefused,
       declaredApproval: tool.approval,
       requiredApproval,
       verdict,
@@ -252,8 +294,57 @@ export function buildMatrix(sink, files, compiled, budget) {
     })
   }
 
+  /*
+   * A declared tool this build could not compile is `undecided`, not absent.
+   *
+   * It used to be dropped: no row, no assumption, and a summary that counted
+   * the survivors. The three documents that say what this tool does -- the
+   * README, the rule catalog and the help text -- all promised the opposite,
+   * that a word outside a ladder leaves the tool undecided and lists the
+   * assumption. Silence is the worst of the three possible answers here,
+   * because the matrix a reviewer signs off then shows only tools that agreed
+   * with the policy, with nothing saying one was refused.
+   *
+   * The reasons are the rule ids the compiler already raised about this entry,
+   * read back from the sink rather than restated, so the row and the findings
+   * cannot disagree.
+   */
+  let grantsPartlyUnknown = false
+  for (const entry of tools.refused) {
+    assume(entry.pointer, 'this tool declaration could not be read, so nothing it declares was mapped')
+    /*
+     * A refused tool may still have declared a readable `roles` list, and the
+     * roles it named are granted a tool whatever else about it was refused.
+     * Without this, refusing one tool made every role only that tool granted
+     * look like a role nothing grants -- an absence this run could not have
+     * established, asserted as a finding.
+     */
+    if (entry.roles === null) grantsPartlyUnknown = true
+    else for (const id of entry.roles) rolesReferenced.add(id)
+    if (entry.id === null) continue
+    counts.undecided += 1
+    rows.push({
+      id: entry.id,
+      capability: null,
+      sensitivity: null,
+      dataClasses: [],
+      dataClassesRefused: 0,
+      roles: [],
+      rolesRefused: 0,
+      scopes: [],
+      scopesRefused: 0,
+      declaredApproval: null,
+      requiredApproval: null,
+      verdict: 'undecided',
+      reasons: [...entry.reasons].sort(byCodeUnit),
+    })
+  }
+
   for (const role of roles.entries) {
     if (rolesReferenced.has(role.id)) continue
+    // An entry whose `roles` list was itself refused may have granted this
+    // role. "Granted no tool" would then be a claim about a list nobody read.
+    if (grantsPartlyUnknown) continue
     sink.add({
       file: files.roles,
       pointer: role.pointer,
@@ -277,10 +368,19 @@ export function buildMatrix(sink, files, compiled, budget) {
  * verdict or an assumption produces a different one. It is computed from the
  * matrix alone -- no clock, no host, no run id -- which is what makes it usable
  * as the thing a review signs off and a later run is compared against.
+ *
+ * `status` is in the body, and inside the digest, because the document is
+ * written out on its own and read on its own. Without it, `--out` handed a
+ * reviewer a signed matrix of `within-policy` rows from a run that had exited
+ * 2, with nothing in the artefact saying the audit never completed -- the
+ * warning existed only on a stderr line that `--json` suppresses and a
+ * consumer reading the file never sees. It is inside the digest rather than
+ * beside it so that approving the bytes approves the completeness claim too.
  */
-export function createMatrix(version, rows, assumptions) {
+export function createMatrix(status, version, rows, assumptions) {
   const body = {
     schemaVersion: MATRIX_SCHEMA_VERSION,
+    status,
     version,
     rows,
     assumptions,

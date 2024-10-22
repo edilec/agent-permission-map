@@ -121,8 +121,13 @@ ERROR   tools.json/tools/2/scopes scope-too-broad Tool "tickets.reply" declares 
         above the 1 the policy allows.
 ```
 
-The breadth of every scope reaches the matrix row whether or not it was refused,
-so a reviewer can see what each tool reaches without reading the findings.
+Every scope this run could measure reaches the matrix row, so a reviewer can
+see what each tool reaches without reading the findings. A scope that could
+**not** be measured has no breadth to report — measuring it is exactly what
+failed — so it cannot appear among the measured ones. It does not vanish
+either: `scopesRefused` on the row says how many were refused, and the same is
+true of `dataClassesRefused` and `rolesRefused`. A short list with no number
+beside it would tell a reviewer the tool reaches less than it declares.
 
 ## Output
 
@@ -133,18 +138,21 @@ so a reviewer can see what each tool reaches without reading the findings.
   "status": "fail",
   "summary": {
     "checked": 3, "errors": 5, "warnings": 0,
-    "tools": 3, "roles": 2, "dataClasses": 2, "requirements": 3,
+    "tools": 3, "toolsRefused": 0, "roles": 2, "dataClasses": 2, "requirements": 3,
     "withinPolicy": 1, "outsidePolicy": 2, "undecided": 0,
     "overbroadScopes": 2, "assumptions": 0
   },
   "matrix": {
     "schemaVersion": "1",
+    "status": "fail",
     "version": "2026-09-1",
     "rows": [
       { "id": "tickets.reply", "capability": "write", "sensitivity": "internal",
-        "dataClasses": ["support.tickets"], "roles": ["support-agent"],
+        "dataClasses": ["support.tickets"], "dataClassesRefused": 0,
+        "roles": ["support-agent"], "rolesRefused": 0,
         "scopes": [ { "pattern": "helpdesk://*/tickets/*", "segments": 3,
                       "wildcards": 2, "unbounded": false } ],
+        "scopesRefused": 0,
         "declaredApproval": "none", "requiredApproval": "per-action",
         "verdict": "outside-policy",
         "reasons": ["approval-below-requirement", "scope-too-broad"] }
@@ -162,6 +170,14 @@ so a reviewer can see what each tool reaches without reading the findings.
 | `outside-policy` | At least one error-severity rule fired against it. |
 | `undecided` | Evidence was missing. Never a pass, always `incomplete`, always listed in `matrix.assumptions`. |
 
+`summary.tools` is what `tools.json` **declares**, and `summary.toolsRefused` is
+how many of those this build could not compile. A tool refused by a closed
+ladder is `undecided` in the matrix, not absent from it: it keeps its id, its
+`reasons` carry the rule that refused it, and the assumption the run could not
+make is listed against its pointer. When the entry declared no usable id there
+is nothing to name a row with, so it reaches the matrix as the assumption alone
+and `checked` is smaller than `tools`.
+
 ### The matrix is versioned
 
 `matrix.version` is the `version` the policy declares, and `matrix.digest` is a
@@ -174,6 +190,13 @@ signs off and a later run is compared against.
 A policy with no `version` produces `"version": null` and an `incomplete` run: a
 map of who may do what, with nothing saying which revision it came from, is a
 map nobody can compare against the next one.
+
+`matrix.status` is the status of the run that produced it, and it is inside the
+digest. The document is written out on its own and read on its own, so it has
+to say on its own that the audit did not complete — the exit code is not in the
+file, and the stderr warning is suppressed by `--json` and never seen by a
+consumer reading the artefact. Approving the bytes therefore approves the
+completeness claim along with the rows.
 
 ### Writing it out
 

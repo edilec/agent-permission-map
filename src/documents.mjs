@@ -194,6 +194,14 @@ function openEntry(sink, file, pointer, raw, spec, byId) {
     })
     return false
   }
+  /*
+   * The id is claimed here rather than after the entry compiles, because the
+   * question the duplicate rule asks is whether two entries declare the same
+   * id -- which they do whether or not the first of them went on to compile.
+   * Claiming it late also let a refused entry and a later good one both carry
+   * the same id, and one of the two is now a matrix row.
+   */
+  byId.set(raw.id, pointer)
   return true
 }
 
@@ -348,7 +356,20 @@ function readScopes(sink, file, pointer, raw, limits) {
 /**
  * Compile `tools.json`.
  *
- * @returns {{declared: number, entries: Array<object>, refusedReferences: number}|null}
+ * `refused` is the other half of the answer and is not optional. A tool whose
+ * capability is a word outside the ladder used to be dropped here and never
+ * mentioned again: no matrix row, no assumption, and a human summary that
+ * counted the survivors and reported "2 of 2 declared tool(s) mapped" over a
+ * document declaring three. Every declared tool now leaves a trace, so the
+ * caller can say `undecided` about the ones this build could not read -- which
+ * is what the README, the rule catalog and the help text all already promised.
+ *
+ * `id` on a refused entry is the id it declared, or `null` when it declared
+ * none this build can use, or when another entry had already claimed it. A row
+ * has to be nameable to exist, so an unnameable refusal reaches the matrix as
+ * an assumption alone.
+ *
+ * @returns {{declared: number, entries: Array<object>, refused: Array<object>, refusedReferences: number}|null}
  */
 export function compileTools(sink, file, value, limits) {
   const document = openDocument(sink, file, value, TOOL_DOCUMENT_KEYS)
@@ -371,12 +392,20 @@ export function compileTools(sink, file, value, limits) {
   }
   const byId = new Map()
   const entries = []
+  const refused = []
   let refusedReferences = 0
 
   for (let index = 0; index < list.length; index += 1) {
     const pointer = `/tools/${index}`
     const raw = list[index]
-    if (!openEntry(sink, file, pointer, raw, spec, byId)) continue
+    const mark = sink.mark()
+    const claimed = byId.size
+    if (!openEntry(sink, file, pointer, raw, spec, byId)) {
+      // `byId` grew only if this entry claimed an id, which is exactly when
+      // the refusal is nameable.
+      refused.push({ pointer, id: byId.size > claimed ? raw.id : null, roles: null, reasons: sink.rulesSince(mark) })
+      continue
+    }
 
     const capability = readWord(sink, file, pointer, 'capability', raw, CAPABILITIES, 'capability-unsupported', 'capability')
     const approval = readWord(sink, file, pointer, 'approval', raw, APPROVALS, 'approval-unsupported', 'approval condition')
@@ -402,10 +431,12 @@ export function compileTools(sink, file, value, limits) {
 
     // Every field is checked before the entry is dropped, so one export gets
     // every diagnostic about it in one run instead of one per re-run.
-    if (capability === null || approval === null || roles === null || dataClasses === null || scopes === null) continue
+    if (capability === null || approval === null || roles === null || dataClasses === null || scopes === null) {
+      refused.push({ pointer, id: raw.id, roles: roles === null ? null : roles.values, reasons: sink.rulesSince(mark) })
+      continue
+    }
 
     refusedReferences += roles.refused + dataClasses.refused + scopes.refused
-    byId.set(raw.id, pointer)
     entries.push({
       id: raw.id,
       pointer,
@@ -421,7 +452,7 @@ export function compileTools(sink, file, value, limits) {
   }
 
   entries.sort((left, right) => (left.id === right.id ? 0 : left.id < right.id ? -1 : 1))
-  return { declared: list.length, entries, refusedReferences }
+  return { declared: list.length, entries, refused, refusedReferences }
 }
 
 /**
@@ -460,7 +491,6 @@ export function compileRoles(sink, file, value, limits) {
     const maxSensitivity = readWord(sink, file, pointer, 'maxSensitivity', raw, SENSITIVITIES, 'sensitivity-unsupported', 'sensitivity')
     if (maxCapability === null || maxSensitivity === null) continue
 
-    byId.set(raw.id, pointer)
     entries.push({ id: raw.id, pointer, maxCapability, maxSensitivity })
   }
 
@@ -495,7 +525,6 @@ function compileDataClasses(sink, file, document, limits) {
     if (!openEntry(sink, file, pointer, raw, spec, byId)) continue
     const sensitivity = readWord(sink, file, pointer, 'sensitivity', raw, SENSITIVITIES, 'sensitivity-unsupported', 'sensitivity')
     if (sensitivity === null) continue
-    byId.set(raw.id, pointer)
     entries.push({ id: raw.id, pointer, sensitivity })
   }
 

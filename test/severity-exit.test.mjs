@@ -250,6 +250,18 @@ const ERROR_CASES = [
     [dataClass('support.tickets', 'internal')],
     [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
   ), [], 2],
+  ['tool-scopes-unreadable', fixture(
+    [tool('tickets.reply', 'write', 'per-action', { scopes: ['helpdesk://acme//tickets'] })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ), [], 2],
+  ['tool-data-classes-unreadable', fixture(
+    [tool('tickets.reply', 'write', 'per-action', { dataClasses: [42] })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ), [], 2],
   ['tool-duplicate', fixture(
     [tool('tickets.reply', 'write', 'per-action'), tool('tickets.reply', 'admin', 'none')],
     [role('support-agent', 'write', 'internal')],
