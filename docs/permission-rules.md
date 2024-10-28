@@ -217,6 +217,7 @@ defect.
 | `tool-data-classes-unreadable` | error | A tool names data classes and every one of them was refused. Not the same fact as declaring none, and never reported as that one. |
 | `tool-declares-no-scope` | error | A tool declares an empty `scopes` list, so what it reaches is unknown. An empty list is not read as "nothing". |
 | `tool-scopes-unreadable` | error | A tool declares scopes and none of them could be measured. Not the same fact as declaring none, and never reported as that one. |
+| `tool-roles-unreadable` | error | A tool names role references and none of them could be read. Not the same fact as being granted to no role, and never reported as that one. |
 | `tool-grants-no-role` | warning | A tool is granted to no role, so nothing declared here can run it. A dead declaration rather than a wider permission. |
 | `role-grants-nothing` | warning | A role is granted no tool. |
 

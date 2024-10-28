@@ -170,6 +170,14 @@ beside it would tell a reviewer the tool reaches less than it declares.
 | `outside-policy` | At least one error-severity rule fired against it. |
 | `undecided` | Evidence was missing. Never a pass, always `incomplete`, always listed in `matrix.assumptions`. |
 
+A list this build could not read is never reported as a list that was empty.
+A tool whose every scope, data class or role reference was refused raises
+`tool-scopes-unreadable`, `tool-data-classes-unreadable` or
+`tool-roles-unreadable` — not the "declares no …" sentence, which asserts an
+absence about a declaration sitting in the file. For the same reason
+`role-grants-nothing` stays silent whenever any grant in `tools.json` went
+unread: the reference nobody could read may be the one that granted that role.
+
 `summary.tools` is what `tools.json` **declares**, and `summary.toolsRefused` is
 how many of those this build could not compile. A tool refused by a closed
 ladder is `undecided` in the matrix, not absent from it: it keeps its id, its

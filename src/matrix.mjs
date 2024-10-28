@@ -59,6 +59,19 @@ export function buildMatrix(sink, files, compiled, budget) {
   const rolesReferenced = new Set()
   const counts = { withinPolicy: 0, outsidePolicy: 0, undecided: 0, overbroadScopes: 0 }
 
+  /*
+   * True once any entry's `roles` list was read only in part.
+   *
+   * `role-grants-nothing` asserts that nothing in `tools.json` grants a role.
+   * That is an absence, and it cannot be established from a document whose
+   * grants were not all read: the reference nobody could read may be the very
+   * one that granted this role. It is set for a refused entry whose whole list
+   * was lost, and for a compiled entry with a refused member in an otherwise
+   * good list -- the second is the case that shipped, because the counter that
+   * would have caught it was added to the row and never consulted here.
+   */
+  let grantsPartlyUnknown = false
+
   const assume = (pointer, assumption) => {
     assumptions.push({ file: files.tools, pointer, assumption })
   }
@@ -156,7 +169,26 @@ export function buildMatrix(sink, files, compiled, budget) {
       assume(`${tool.pointer}/scopes`, 'no resource scope is declared, so what this tool reaches is unknown')
     }
 
-    if (tool.roles.length === 0) {
+    /*
+     * The same split the two lists above make, for the third list.
+     *
+     * A refused role reference leaves `roles` empty exactly as an absent one
+     * does, and answering both with "granted to no role" tells a reviewer that
+     * nothing can run this tool while the grant that would have said otherwise
+     * is sitting in the file, refused. It is also the milder sentence of the
+     * two: `tool-grants-no-role` is a warning about a dead declaration, so the
+     * conflation quietly downgraded an unread grant to a harmless one.
+     */
+    if (tool.rolesRefused > 0) grantsPartlyUnknown = true
+    if (tool.roles.length === 0 && tool.rolesRefused > 0) {
+      undecided = true
+      fail(
+        'tool-roles-unreadable',
+        `${tool.pointer}/roles`,
+        `Tool "${excerpt(tool.id, 120)}" names ${tool.rolesRefused} role reference(s) and none of them could be read, so which ceilings govern it is unknown. That is not the same as being granted to no role, and it is not reported as such.`,
+        'Correct the refused references; the finding on each one says what was wrong with it.',
+      )
+    } else if (tool.roles.length === 0) {
       fail(
         'tool-grants-no-role',
         `${tool.pointer}/roles`,
@@ -309,7 +341,6 @@ export function buildMatrix(sink, files, compiled, budget) {
    * read back from the sink rather than restated, so the row and the findings
    * cannot disagree.
    */
-  let grantsPartlyUnknown = false
   for (const entry of tools.refused) {
     assume(entry.pointer, 'this tool declaration could not be read, so nothing it declares was mapped')
     /*

@@ -256,6 +256,12 @@ const ERROR_CASES = [
     [dataClass('support.tickets', 'internal')],
     [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
   ), [], 2],
+  ['tool-roles-unreadable', fixture(
+    [tool('tickets.reply', 'write', 'per-action', { roles: [42] })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ), [], 2],
   ['tool-data-classes-unreadable', fixture(
     [tool('tickets.reply', 'write', 'per-action', { dataClasses: [42] })],
     [role('support-agent', 'write', 'internal')],

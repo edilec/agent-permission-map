@@ -14,11 +14,13 @@
  * drives a real input through the real binary for every error rule here and
  * pins the process exit code. An exit code cannot be edited.
  *
- * Only four rules sit below `error`, and each is a legitimate state rather than
- * a defect: a repeated reference in a list changes nothing and is dropped
+ * Five rules sit below `error`, and each is a legitimate state rather than a
+ * defect: a repeated reference in a list changes nothing and is dropped
  * (`scope-duplicate`, `class-reference-duplicate`, `role-reference-duplicate`),
  * and a declaration nobody can use (`tool-grants-no-role`,
- * `role-grants-nothing`) is dead rather than dangerous.
+ * `role-grants-nothing`) is dead rather than dangerous. The sentence counted
+ * four while naming five, which is the kind of drift the two tests above exist
+ * to catch and prose does not.
  */
 export const RULE_SEVERITY = Object.freeze({
   'approval-below-requirement': 'error',
@@ -70,6 +72,7 @@ export const RULE_SEVERITY = Object.freeze({
   'tool-duplicate': 'error',
   'tool-grants-no-role': 'warning',
   'tool-invalid': 'error',
+  'tool-roles-unreadable': 'error',
   'tool-scopes-unreadable': 'error',
 })
 

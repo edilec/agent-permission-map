@@ -173,6 +173,60 @@ test('a tool whose every data class reference was refused is not reported as dec
   assert.match(findingsFor(refused, 'tool-data-classes-unreadable')[0].message, /not the same as declaring none/)
 })
 
+test('a tool whose every role reference was refused is not reported as granted to none', async () => {
+  const refused = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', { roles: [42] })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+  const absent = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', { roles: [] })],
+    [role('support-agent', 'write', 'internal')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+
+  // The two facts get two rule ids, two severities and two sentences. The
+  // conflation that shipped answered both with the milder warning.
+  assert.deepEqual(raisedRules(refused), ['role-reference-invalid', 'tool-roles-unreadable'])
+  assert.deepEqual(raisedRules(absent), ['role-grants-nothing', 'tool-grants-no-role'])
+  assert.notEqual(
+    findingsFor(refused, 'tool-roles-unreadable')[0].message,
+    findingsFor(absent, 'tool-grants-no-role')[0].message,
+  )
+  assert.match(findingsFor(refused, 'tool-roles-unreadable')[0].message, /not the same as being granted to no role/)
+
+  // And the consequence: the refused grant leaves the row undecided and the run
+  // incomplete, where the absent one is a warning the run still passes on.
+  assert.equal(rowFor(refused, 'tickets.reply').verdict, 'undecided')
+  assert.equal(refused.status, 'incomplete')
+  assert.equal(rowFor(absent, 'tickets.reply').verdict, 'within-policy')
+  assert.equal(absent.status, 'pass')
+})
+
+test('a role a refused reference might have granted is not reported as granted nothing', async () => {
+  // `tickets.reply` names two roles and one of them could not be read. Whether
+  // `reviewer` is the unread one is exactly what this run cannot establish.
+  const partial = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', { roles: ['support-agent', 42] })],
+    [role('support-agent', 'write', 'internal'), role('reviewer', 'admin', 'restricted')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+  // The same documents with every reference readable: now the absence is a fact.
+  const whole = await apiReport(fixture(
+    [tool('tickets.reply', 'write', 'per-action', { roles: ['support-agent'] })],
+    [role('support-agent', 'write', 'internal'), role('reviewer', 'admin', 'restricted')],
+    [dataClass('support.tickets', 'internal')],
+    [requirement('write', 'internal', 'per-action', 1, 'forbidden')],
+  ))
+
+  assert.deepEqual(raisedRules(partial), ['role-reference-invalid'])
+  assert.deepEqual(raisedRules(whole), ['role-grants-nothing'])
+  assert.deepEqual(findingsFor(whole, 'role-grants-nothing').map((finding) => finding.message.slice(0, 22)), ['Role "reviewer" is gra'])
+})
+
 /**
  * The other half of a breadth guard, and the half that is easy to leave out: a
  * guard that refuses every wide scope passes every test above while making the

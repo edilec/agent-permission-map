@@ -25,19 +25,24 @@ here.
   is inside the digest. `--out` used to write a signed matrix of
   `within-policy` rows from a run that had exited 2, with the only warning on a
   stderr line that `--json` suppresses.
-- A tool whose every scope or every data-class reference was refused is no
-  longer reported as declaring none. `tool-scopes-unreadable` and
-  `tool-data-classes-unreadable` say what actually happened; the old
-  `tool-declares-no-scope` and `tool-declares-no-data-class` messages asserted
-  an absence that was false and sent a reviewer looking for a declaration that
-  was sitting in the file.
+- A tool whose every scope, data-class reference or role reference was refused
+  is no longer reported as declaring none. `tool-scopes-unreadable`,
+  `tool-data-classes-unreadable` and `tool-roles-unreadable` say what actually
+  happened; the old `tool-declares-no-scope`, `tool-declares-no-data-class` and
+  `tool-grants-no-role` messages asserted an absence that was false and sent a
+  reviewer looking for a declaration that was sitting in the file. The role case
+  was the mildest of the three and so the easiest to miss: `tool-grants-no-role`
+  is a `warning` about a dead declaration, so an unread grant was being reported
+  as a harmless one.
 - Matrix rows carry `dataClassesRefused`, `rolesRefused` and `scopesRefused`. A
   reference or pattern the build could not read cannot appear in the list
   beside it, and a list that simply lost it said the tool reaches less than it
   declares.
-- `role-grants-nothing` stays silent when a tool entry whose `roles` list was
-  itself refused is present: "granted no tool" would be an absence this run
-  could not have established.
+- `role-grants-nothing` stays silent when any grant went unread -- a tool entry
+  whose whole `roles` list was refused, and a compiled entry with a refused
+  member in an otherwise good list. "Granted no tool" is an absence, and it
+  cannot be established from a document whose grants were not all read: the
+  reference nobody could read may be the one that granted this role.
 - `location.file` and `location.pointer` are no longer passed through
   `excerpt`, which collapses runs of whitespace and trims. A file named
   `my  tools.json` was reported as `my tools.json`, and a consumer resolving
