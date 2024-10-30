@@ -88,7 +88,7 @@ test('the shipped source imports exactly the file-system surfaces it needs, and 
   // one, while this line fails the moment another verb is imported at all.
   const imports = (source.match(/import \{[^}]*\} from 'node:fs[^']*'/g) ?? []).sort()
   assert.deepEqual(imports, [
-    "import { lstat, realpath, stat } from 'node:fs/promises'",
+    "import { lstat, readlink, realpath, stat } from 'node:fs/promises'",
     "import { readFile, realpath, stat } from 'node:fs/promises'",
     "import { writeFile } from 'node:fs/promises'",
   ])

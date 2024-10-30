@@ -13,7 +13,7 @@ import { CLI, clean, cliRun, withRoot } from './support.mjs'
  *
  * Measured across this catalog rather than imagined: ten tools accepted a
  * destination that overwrote something they were never asked to touch, and four
- * of them exited 0 saying the write succeeded. The three holes are independent
+ * of them exited 0 saying the write succeeded. The four holes are independent
  * and each needs its own case, because guarding one or two is what every one of
  * those tools had already done:
  *
@@ -23,6 +23,8 @@ import { CLI, clean, cliRun, withRoot } from './support.mjs'
  *    `root/link/out`, so the parent is resolved and then compared.
  * 3. A **hard link to an input** -- no target and no shared path, so only
  *    device plus inode sees that it is the same file.
+ * 4. A **dangling input link to a new output** -- no output inode exists yet;
+ *    writing makes the previously unreadable input resolve to output bytes.
  *
  * The allowed cases matter just as much: a guard that refuses everything passes
  * every data-loss test above while making the tool useless, and a guard that
@@ -156,6 +158,41 @@ test('the allowed case: a new file is written, and it carries the versioned matr
       assert.equal(JSON.parse(run.stdout).matrix.digest, written.digest)
     })
   })
+})
+
+test('a distinct missing named input still permits an incomplete matrix at a new output', async () => {
+  const { 'tools.json': omitted, ...documents } = clean()
+  assert.ok(omitted)
+  await withRoot(documents, async (root) => {
+    const out = join(root, 'matrix.json')
+    const run = await cliRun(['--root', root, '--json', '--out', out, '--out-root', root])
+    assert.equal(run.code, 2)
+    assert.equal(JSON.parse(run.stdout).status, 'incomplete')
+    assert.equal(JSON.parse(await readFile(out, 'utf8')).status, 'incomplete')
+    await assert.rejects(() => stat(join(root, 'tools.json')))
+  })
+})
+
+test('a dangling input link to the absent matrix is refused before one or two hops become readable', async () => {
+  const { 'tools.json': omitted, ...documents } = clean()
+  assert.ok(omitted)
+  for (const hops of [1, 2]) {
+    await withRoot(documents, async (root) => {
+      const out = join(root, 'matrix.json')
+      const input = join(root, 'tools.json')
+      if (hops === 2) {
+        await symlink('matrix.json', join(root, 'middle.json'))
+        await symlink('middle.json', input)
+      } else await symlink('matrix.json', input)
+
+      const run = await cliRun(['--root', root, '--json', '--out', out, '--out-root', root])
+      assert.equal(run.code, 2)
+      assert.equal(run.stdout, '', 'a refused destination is a configuration error')
+      assert.match(run.stderr, /names an input path/)
+      await assert.rejects(() => stat(out), 'no matrix was created through the input alias')
+      await assert.rejects(() => stat(input), 'the named input remains unreadable')
+    })
+  }
 })
 
 test('the allowed case: an existing ordinary file that is not an input is overwritten', async () => {

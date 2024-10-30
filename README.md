@@ -214,8 +214,10 @@ anything is written: a symbolic link at the destination is refused on sight, a
 parent that resolves outside `--out-root` (default: the current working
 directory) is refused, and a destination that is the same file as one of the
 three inputs — including through a hard link, which shares no path with it and
-resolves to nothing — is refused. A refused destination is a configuration
-error: stdout stays empty and the exit code is 2.
+resolves to nothing — is refused. A dangling input symlink that names a new
+destination is also refused before the report can make that input readable.
+A refused destination is a configuration error: stdout stays empty and the exit
+code is 2.
 
 ## Examples
 

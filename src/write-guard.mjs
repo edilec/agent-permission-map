@@ -1,5 +1,5 @@
-import { lstat, realpath, stat } from 'node:fs/promises'
-import { dirname, resolve, sep } from 'node:path'
+import { lstat, readlink, realpath, stat } from 'node:fs/promises'
+import { basename, dirname, resolve, sep } from 'node:path'
 
 /** Raised when a destination cannot be written to safely. The caller exits 2. */
 export class DestinationError extends Error {
@@ -9,11 +9,35 @@ export class DestinationError extends Error {
   }
 }
 
+async function namedInputTarget(path, label) {
+  let current = resolve(path)
+  const seen = new Set()
+  for (let hop = 0; hop < 40; hop += 1) {
+    let parent
+    try {
+      parent = await realpath(dirname(current))
+    } catch (error) {
+      if (error.code === 'ENOENT') return current
+      throw new DestinationError(`${label} input path could not be inspected.`)
+    }
+    const named = resolve(parent, basename(current))
+    if (seen.has(named)) throw new DestinationError(`${label} input path has a symbolic-link cycle.`)
+    seen.add(named)
+    try {
+      current = resolve(parent, await readlink(named))
+    } catch (error) {
+      if (error.code === 'EINVAL' || error.code === 'ENOENT') return named
+      throw new DestinationError(`${label} input path could not be inspected.`)
+    }
+  }
+  throw new DestinationError(`${label} input path has too many symbolic links.`)
+}
+
 /**
  * Refuse an output destination that would write somewhere the caller did not
  * name, or over something the caller is reading.
  *
- * Three distinct holes, and each needs its own check because no one of them
+ * Four distinct holes, and each needs its own check because no one of them
  * catches the others:
  *
  * 1. A SYMLINK AT THE DESTINATION writes wherever the link points, which may be
@@ -26,6 +50,9 @@ export class DestinationError extends Error {
  * 3. A HARD LINK TO AN INPUT has no target to resolve and shares no path with
  *    it, so realpath and string comparison both say it is a different file. It
  *    is the same file. Only device plus inode sees that.
+ * 4. A DANGLING INPUT SYMLINK may name a destination that does not exist yet.
+ *    With no destination inode, check 3 cannot see the alias. Resolve every
+ *    named input's final symlink chain before accepting a new destination.
  *
  * Measured across this catalog: seven tools guarded 1 and 3 but not 2, and
  * three of them destroyed a file outside their root while exiting 0.
@@ -75,6 +102,13 @@ export async function assertWritableDestination(destination, options = {}) {
         `${label} resolves to ${parent}, which is outside the permitted root. `
         + `A link or a "..\" segment on the way there does not widen it.`,
       )
+    }
+  }
+
+  const namedDestination = resolve(parent, basename(target))
+  for (const input of inputs) {
+    if (await namedInputTarget(input, label) === namedDestination) {
+      throw new DestinationError(`${label} names an input path.`)
     }
   }
 

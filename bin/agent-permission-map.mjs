@@ -81,8 +81,9 @@ Writing the matrix:
   --out is checked before anything is read and long before anything is written.
   A destination that is a symbolic link is refused unread, a destination that is
   the same file as one of the three inputs -- including through a hard link,
-  which shares no path with it -- is refused, and a destination whose parent
-  resolves outside --out-root is refused. A refused destination is a
+   which shares no path with it -- is refused, a dangling input link to a new
+   destination is refused, and a destination whose parent resolves outside
+   --out-root is refused. A refused destination is a
   configuration error: stdout stays empty and the exit code is 2. The matrix is
   written before the report reaches stdout, so a write that fails also leaves
   stdout empty rather than reporting success for an artefact that does not exist.
@@ -213,8 +214,9 @@ async function main(argv) {
   /*
    * The destination is checked before anything is read and long before anything
    * is written. `--out` is not a safe place to put an unchecked path: a symlink
-   * there, a symlinked directory on the way there, or a hard link to one of the
-   * three inputs all destroy a file this tool was never asked to touch, and in
+    * there, a symlinked directory on the way there, a hard link to one of the
+    * three inputs, or a dangling input link to this new output can all alter
+    * evidence this tool was never asked to touch, and in
    * this catalog every one of them has done exactly that while the run exited 0
    * reporting success. The input set is every file the run may open, not just
    * the primary one.
