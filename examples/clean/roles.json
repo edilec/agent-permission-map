@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1",
+  "roles": [
+    { "id": "docs-reader", "maxCapability": "read", "maxSensitivity": "public", "description": "Reads published documentation" },
+    { "id": "support-agent", "maxCapability": "write", "maxSensitivity": "internal", "description": "Answers customer support threads" }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1",
+  "version": "2026-09-1",
+  "dataClasses": [
+    { "id": "public.docs", "sensitivity": "public", "description": "Published product documentation" },
+    { "id": "support.tickets", "sensitivity": "internal", "description": "Customer support threads" }
+  ],
+  "requirements": [
+    {
+      "capability": "read",
+      "sensitivity": "public",
+      "approval": "none",
+      "maxScopeWildcards": 2,
+      "unboundedScope": "allowed",
+      "description": "Published material may be read unattended and widely."
+    },
+    {
+      "capability": "read",
+      "sensitivity": "internal",
+      "approval": "per-session",
+      "maxScopeWildcards": 1,
+      "unboundedScope": "forbidden"
+    },
+    {
+      "capability": "write",
+      "sensitivity": "internal",
+      "approval": "per-action",
+      "maxScopeWildcards": 1,
+      "unboundedScope": "forbidden"
+    }
+  ]
+}

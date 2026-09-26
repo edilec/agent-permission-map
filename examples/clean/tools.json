@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1",
+  "tools": [
+    {
+      "id": "docs.search",
+      "capability": "read",
+      "scopes": ["docs://public/**"],
+      "dataClasses": ["public.docs"],
+      "roles": ["docs-reader", "support-agent"],
+      "approval": "none",
+      "description": "Full-text search over published documentation"
+    },
+    {
+      "id": "tickets.read",
+      "capability": "read",
+      "scopes": ["helpdesk://acme/tickets/*"],
+      "dataClasses": ["support.tickets"],
+      "roles": ["support-agent"],
+      "approval": "per-session"
+    },
+    {
+      "id": "tickets.reply",
+      "capability": "write",
+      "scopes": ["helpdesk://acme/tickets/*"],
+      "dataClasses": ["support.tickets"],
+      "roles": ["support-agent"],
+      "approval": "per-action"
+    }
+  ]
+}
