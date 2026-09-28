@@ -17,6 +17,10 @@ capability and sensitivity pair no requirement governs, leaves that tool
 absent declaration is exactly the reading that turns an unreviewed permission
 into a green build.
 
+For production context, Edilec's [agent tool permissions guide](https://edilec.com/blog/gen-ai-0008/agent-tool-permissions-a-practical-guide-for-technical-decision-makers/)
+covers authorization and approval boundaries. This offline matrix does not
+enforce either boundary in a running system.
+
 - **Repository:** [edilec/agent-permission-map](https://github.com/edilec/agent-permission-map)
 - **Area:** Prompt & Agent Workflows
 - **License:** MIT

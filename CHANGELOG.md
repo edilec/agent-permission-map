@@ -5,7 +5,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Rule ids are
 part of the public surface: renaming one is a breaking change and is recorded
 here.
 
-## [Unreleased]
+## [0.1.0] - 2026-09-28
 
 ### Fixed
 
@@ -143,4 +143,4 @@ here.
   rather than by a source scan, because `Intl.Collator` collates identically to
   `localeCompare` and spells differently.
 
-No release has been published.
+First public source release; this package is not published to npm.
