@@ -24,14 +24,22 @@ into a green build.
 
 ## Install and run
 
-```sh
-npx agent-permission-map --root ./declarations
-```
+This package is not published to the npm registry. From a checkout of this
+repository, run the checked-in CLI against the public fixture or your own
+declarations:
 
 ```sh
-agent-permission-map --root examples/clean
-agent-permission-map --root examples/broad --json | jq '.matrix.rows[] | {id, verdict, reasons}'
-agent-permission-map --root examples/clean --out ./matrix.json --out-root .
+node bin/agent-permission-map.mjs --root examples/clean
+node bin/agent-permission-map.mjs --root examples/broad --json | jq '.matrix.rows[] | {id, verdict, reasons}'
+node bin/agent-permission-map.mjs --root examples/clean --out ./matrix.json --out-root .
+node bin/agent-permission-map.mjs --root ./declarations
+```
+
+From another project, npm can fetch the public GitHub source directly. The
+declarations path is relative to that project's working directory:
+
+```sh
+npm exec --yes --package=git+https://github.com/edilec/agent-permission-map.git -- agent-permission-map --root ./declarations
 ```
 
 stdout carries the JSON report and nothing else, so it can be piped straight
